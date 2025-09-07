@@ -357,7 +357,7 @@ def send_message_in_open_chat(driver):
 
 def handle_passkey_popup(driver):
     logging.info("Checking for the 'passkey' creation popup...")
-    passkey_popup_button_xpath = "//div[@role='dialog']//button[contains(., 'Belki daha sonra')]"
+    passkey_popup_button_xpath = "//div[starts-with(@id, 'floating-ui-')]/div/div[2]/button[1]"
     try:
         wait = WebDriverWait(driver, 15)
         maybe_later_button = wait.until(
@@ -379,6 +379,7 @@ def handle_passkey_popup(driver):
 def is_arm_architecture():
     machine_arch = platform.machine().lower()
     return 'arm' in machine_arch or 'aarch64' in machine_arch
+
 @contextmanager
 def managed_webdriver(headless, user_agent):
     terminate_lingering_processes()
@@ -393,8 +394,19 @@ def managed_webdriver(headless, user_agent):
                  logging.critical("See the 'Troubleshooting' section in README.md for manual solutions.")
                  sys.exit(1)
 
-    user_data_dir = tempfile.mkdtemp()
-    logging.info(f"Using temporary user data directory: {user_data_dir}")
+    SESSION_DIR = os.path.join(os.getcwd(), "session_data")
+
+    logging.info(f"Checking for and cleaning up any previous session directory at: {SESSION_DIR}")
+    if os.path.exists(SESSION_DIR):
+        try:
+            shutil.rmtree(SESSION_DIR, ignore_errors=True)
+            logging.info("Previous session directory cleaned up successfully.")
+            time.sleep(1)
+        except Exception as e:
+            logging.warning(f"Could not fully clean previous session directory, but continuing. Error: {e}")
+
+    user_data_dir = SESSION_DIR
+    logging.info(f"Using predictable user data directory: {user_data_dir}")
     
     driver = None
     try:
@@ -431,13 +443,13 @@ def managed_webdriver(headless, user_agent):
         
         terminate_lingering_processes()
         
-        logging.info(f"Cleaning up temporary user data directory: {user_data_dir}")
+        logging.info(f"Cleaning up current session directory: {user_data_dir}")
         try:
             time.sleep(2)
             shutil.rmtree(user_data_dir, ignore_errors=True)
-            logging.info(f"Successfully initiated cleanup for temp directory: {user_data_dir}")
+            logging.info(f"Successfully initiated cleanup for session directory: {user_data_dir}")
         except Exception as e:
-            logging.error(f"CRITICAL: Failed to remove temp directory {user_data_dir}. This may cause issues on next run. Error: {e}")
+            logging.error(f"CRITICAL: Failed to remove session directory {user_data_dir}. Error: {e}")
 
 def run_bot():
     if TEST_MODE:
@@ -536,4 +548,3 @@ if __name__ == "__main__":
 
             logging.debug(f"Next check in {check_interval_seconds} seconds. Next run target: {next_run_dt.strftime('%Y-%m-%d %H:%M:%S')}")
             time.sleep(check_interval_seconds)
-
