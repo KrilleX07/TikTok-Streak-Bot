@@ -4,7 +4,7 @@ This bot designed to solve one specific, annoying problem: **maintaining TikTok 
 
 Manually sending a message every day to keep a streak alive is a waste of mental energy. You forget, the streak dies, it's a chore. This script automates that chore.
 
-### How It's Built to Not Fail
+## How It's Built to Not Fail
 
 I built this thing to be solid because I never want to think about streaks again.
 
@@ -13,7 +13,7 @@ I built this thing to be solid because I never want to think about streaks again
 *   **No Blindness:** Bot keeps a detailed `log file` of every major action, warning, and critical error.
 *   **Smart Configuration:** All needed variables are in `config.json`. The XPaths are hardcoded in the script. TikTok's frontend team is lazy. They haven't changed the core message UI in ages. If they ever do, you'll update a few variables at the top of the script. If I see it, I'll fix it and commit it.
 
-### Installation
+## Installation
 
 You need Python 3.
 
@@ -37,7 +37,7 @@ You need Python 3.
 4.  **Configure It:**
     The first time you run the script, it will create a `config.json` file. Open it and set it up.
 
-### Configuration (`config.json`)
+## Configuration (`config.json`)
 
 This file controls the bot.
 
@@ -61,37 +61,49 @@ This file controls the bot.
 *   `LOG_FILENAME`: Name of the log file.
 *   `HEADLESS_MODE`: `true` runs it invisibly. `false` shows the browser window.
 
-### Usage
+## Usage
 
 1.  **Test Run:**
     Set `"TEST_MODE": true` in the config and run `python main.py`. Check the console and the log file to see if it worked.
 
-2.  **Deploy:**
+3.  **Deploy:**
     Set `"TEST_MODE": false` in the config. For a silent background process on Windows, run it with `pythonw.exe`:
     ```bash
     pythonw.exe main.py
     ```
     
-    **For to open automatically after the system reboots, set this up as a Scheduled Task in Windows to run at logon.(I use this)**
+    **For to open automatically after the system reboots, set this up as a Scheduled Task or Service in Windows to run at logon.(I use this)**
 
-### Troubleshooting
+### 3. Complete Automation Setup (Windows Service via .exe)
 
-#### Error on Raspberry Pi / ARM64 Systems (`Exec format error`)
+If you don't know Python or just want a bulletproof background process that survives reboots and runs silently, use the `.exe` version with NSSM (Non-Sucking Service Manager).
 
-This bot is built for standard x86 systems. If you run it on an ARM machine like a Raspberry Pi, it will fail with an `Exec format error`.
+ 1. Download the latest `tiktok-bot.exe` from the **Releases** tab.
+ 2. Put the `.exe`, `config.json`, and `cookies.json` in a dedicated folder (e.g., `C:\TikTokBot`).
+ 3. Download [NSSM](http://nssm.cc/) and extract `nssm.exe` (use the win64 version) into the same folder.
+ 4. Open Command Prompt **as Administrator**, navigate to your folder, and type:
+   ```bash
+   nssm install TikTokStreakBot
+   ```
+ 5. A GUI will pop up. In the **Path** box, select your `tiktok-bot.exe`.
+ 6. Go to the **Details** tab, set the display name and description if you want.
+ 7. Click **Install service**. 
+ 8. After you install the service **type**:
+   ```bash
+   sc start TikTokStreakBot
+   ```
 
-**The Problem:** The automatic driver downloader (`webdriver-manager`) is can't fetch the correct `chromedriver` for ARM CPUs. It downloads the x86 version, which can't run.
+That's it. It's now a Windows system service. It will run automatically every time your PC turns on, completely invisible. You can check your `tiktok_bot.txt` log file to see it working.
 
-**The Solution:** The script will now detect this and exit. To make it work, you must manually override the driver.
+## Troubleshooting
 
-1.  **Use Firefox:** This is the most simple way. Install Firefox (`sudo apt-get install firefox-esr`), then modify `main.py` to use `webdriver.Firefox()` instead of `webdriver.Chrome()`. You'll need to adjust the `Service` object for geckodriver.
+#### Mac and Linux Compatibility
 
-2.  **Manual Chrome Driver:** If you want on using Chrome, find and download a compatible ARM64 `chromedriver` binary yourself. Then, in `main.py`, find this line:
-    `service = Service(ChromeDriverManager().install())`
-    ...and replace it with a direct path:
-    `service = Service(executable_path="/path/to/your/arm_chromedriver")`
+The bot is fully cross-platform. It automatically detects your operating system (Windows, macOS, or Linux) and executes the correct background cleanup commands (`taskkill` for Windows, `pkill` for Unix). 
 
-### Is It Reliable? (Real-World Data)
+If you are running this on an ARM device (like a Raspberry Pi or an Apple Silicon Mac M1/M2/M3), modern versions of `webdriver-manager` handle the architecture automatically. Just ensure you have the respective browser installed on your system (e.g., Chromium on Linux).
+
+## Is It Reliable? (Real-World Data)
 
 A 100% success rate is a fantasy. Things break. Here's the data from about 90 days of it running live:
 
