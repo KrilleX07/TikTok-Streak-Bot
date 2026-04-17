@@ -128,8 +128,8 @@ logging.basicConfig(
 logging.info("--- Bot Started ---")
 logging.info(f"Using configuration from '{CONFIG_FILE}'. TEST_MODE: {TEST_MODE}, Target Time: {TARGET_SEND_TIME.strftime('%H:%M')}")
 
-MESSAGE_LIST_CONTAINER_XPATH = '//*[@id="app"]/div[2]/div[1]/div/div[4]/div/div/div[2]'
-CONVERSATION_ITEM_XPATH = "//div[@data-e2e='chat-list-item']"
+MESSAGE_LIST_CONTAINER_XPATH = "//*[@data-e2e='dm-new-conversation-list']"
+CONVERSATION_ITEM_XPATH = "//*[@data-e2e='dm-new-conversation-item']"
 NICKNAME_CLASS_PARTIAL = "PInfoNickname"
 NICKNAME_XPATH_INSIDE_ITEM = f".//p[contains(@class, '{NICKNAME_CLASS_PARTIAL}')]"
 CLICK_TARGET_XPATH = '//*[@id="main-content-messages"]/div/div[3]/div[4]/div'
