@@ -22,7 +22,6 @@ from selenium.webdriver.chrome.options import Options
 os.environ['WDM_LOG'] = '0'
 from webdriver_manager.chrome import ChromeDriverManager
 
-
 CONFIG_FILE = "config.json"
 
 DEFAULT_CONFIG = {
@@ -67,8 +66,13 @@ def load_or_create_config(filename):
 def terminate_lingering_processes():
     logging.info("Searching for and terminating any lingering chrome/chromedriver processes...")
     try:
-        os.system("taskkill /F /IM chromedriver.exe /T > NUL 2>&1")
-        os.system("taskkill /F /IM chrome.exe /T > NUL 2>&1")
+        current_os = platform.system()
+        if current_os == "Windows":
+            os.system("taskkill /F /IM chromedriver.exe /T > NUL 2>&1")
+            os.system("taskkill /F /IM chrome.exe /T > NUL 2>&1")
+        else:
+            os.system("pkill -f chromedriver > /dev/null 2>&1")
+            os.system("pkill -fi chrome > /dev/null 2>&1")
         logging.info("Process termination commands executed.")
     except Exception as e:
         logging.error(f"An error occurred during process termination: {e}")
@@ -85,6 +89,15 @@ TARGET_USERS = config.get('TARGET_USERS', DEFAULT_CONFIG['TARGET_USERS'])
 MESSAGE_TO_SEND = config.get('MESSAGE_TO_SEND', DEFAULT_CONFIG['MESSAGE_TO_SEND'])
 time_hm = config.get('TARGET_SEND_TIME_HM', DEFAULT_CONFIG['TARGET_SEND_TIME_HM'])
 COOKIES_FILE = config.get('COOKIES_FILE', DEFAULT_CONFIG['COOKIES_FILE'])
+
+if not os.path.exists(COOKIES_FILE):
+    try:
+        with open(COOKIES_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f, indent=4)
+        logging.info(f"Cookies file '{COOKIES_FILE}' not found. Created an empty one.")
+    except Exception as e:
+        logging.error(f"ERROR: Could not create empty cookies file '{COOKIES_FILE}': {e}")
+
 LOG_FILENAME = config.get('LOG_FILENAME', DEFAULT_CONFIG['LOG_FILENAME'])
 USER_AGENT = config.get('USER_AGENT', DEFAULT_CONFIG['USER_AGENT'])
 TIKTOK_MESSAGES_URL = config.get('TIKTOK_MESSAGES_URL', DEFAULT_CONFIG['TIKTOK_MESSAGES_URL'])
@@ -376,23 +389,9 @@ def handle_passkey_popup(driver):
         logging.warning(f"An error occurred while handling the passkey popup: {e}")
 
 @contextmanager
-def is_arm_architecture():
-    machine_arch = platform.machine().lower()
-    return 'arm' in machine_arch or 'aarch64' in machine_arch
-
-@contextmanager
 def managed_webdriver(headless, user_agent):
     terminate_lingering_processes()
     time.sleep(1)
-    if is_arm_architecture():
-        try:
-            Service(executable_path=ChromeDriverManager().install())
-        except Exception as e:
-            if "Exec format error" in str(e) or is_arm_architecture():
-                 logging.critical("ARM ARCHITECTURE DETECTED AND NO COMPATIBLE DRIVER FOUND.")
-                 logging.critical("webdriver-manager cannot automatically download a driver for this system.")
-                 logging.critical("See the 'Troubleshooting' section in README.md for manual solutions.")
-                 sys.exit(1)
 
     SESSION_DIR = os.path.join(os.getcwd(), "session_data")
 
