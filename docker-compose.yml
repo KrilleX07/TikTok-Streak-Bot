@@ -1,0 +1,27 @@
+services:
+  tiktok-streak-bot:
+    build: .
+    container_name: tiktok-streak-bot
+    restart: unless-stopped
+    # Chrome needs adequate shared memory — without this it will crash on complex pages
+    shm_size: '2gb'
+    volumes:
+      # Inject your credentials and config (read-only)
+      - ./data/cookies.json:/app/cookies.json:ro
+      - ./data/config.json:/app/config.json:ro
+      # Persist logs outside the container
+      - ./data:/app/data
+      # Cache the downloaded ChromeDriver so it doesn't re-download on every restart
+      - wdm-cache:/root/.wdm
+    environment:
+      # Must match where you're running this so the schedule fires at the right local time
+      - TZ=Asia/Singapore
+      - WDM_LOG=0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  wdm-cache:

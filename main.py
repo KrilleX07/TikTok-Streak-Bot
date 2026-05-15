@@ -161,6 +161,8 @@ NICKNAME_XPATH_INSIDE_ITEM   = f".//p[contains(@class, '{NICKNAME_CLASS_PARTIAL}
 CLICK_TARGET_XPATH           = '//*[@id="main-content-messages"]/div/div[3]/div[4]/div'
 WRITE_TARGET_XPATH           = '//*[@id="main-content-messages"]/div/div[3]/div[4]/div/div[1]/div/div[2]/div[2]/div/div/div/div'
 TOAST_XPATH                  = "//li[@data-sonner-toast]"
+MAX_RETRIES                  = 3
+RETRY_DELAY_SECONDS          = 12
 
 # ──────────────────────────────────────────────
 # COOKIE LOADER
@@ -336,7 +338,7 @@ def send_message_in_open_chat(driver):
             write_target.send_keys(Keys.ENTER)
             logging.info("Message sent.")
             time.sleep(random.uniform(2, 4))
-            return True
+            return verify_message_sent(driver)
         except ElementNotInteractableException:
             logging.warning("send_keys failed. Trying JS textContent...")
             try:
@@ -347,7 +349,7 @@ def send_message_in_open_chat(driver):
                 write_target.send_keys(Keys.ENTER)
                 logging.info("Message sent via JS.")
                 time.sleep(random.uniform(2, 4))
-                return True
+                return verify_message_sent(driver)
             except Exception as je:
                 logging.error(f"JS send also failed: {je}")
                 return False
@@ -357,6 +359,30 @@ def send_message_in_open_chat(driver):
 
     except Exception as e:
         logging.error(f"General error in send_message: {e}")
+        return False
+
+def verify_message_sent(driver):
+    """
+    After pressing Enter, a successful TikTok send clears the input field.
+    If the field still has content, the message silently failed to send.
+    """
+    logging.info("Verifying message was sent...")
+    try:
+        write_target = WebDriverWait(driver, 6).until(
+            EC.presence_of_element_located((By.XPATH, WRITE_TARGET_XPATH))
+        )
+        content = (write_target.text or write_target.get_attribute("textContent") or "").strip()
+        if content == "":
+            logging.info("Verification passed: input field is empty, message sent.")
+            return True
+        else:
+            logging.warning(f"Verification FAILED: input field still contains '{content}' — message did not go through.")
+            return False
+    except TimeoutException:
+        logging.warning("Verification FAILED: could not locate input field after send attempt.")
+        return False
+    except Exception as e:
+        logging.warning(f"Verification check raised an exception: {e}")
         return False
 
 def handle_passkey_popup(driver):
@@ -524,16 +550,41 @@ def run_bot():
 
             for user in TARGET_USERS:
                 safe_user = ''.join(c for c in user if c.isprintable())
-                logging.info(f"--- Processing: '{safe_user}' ---")
+                sent = False
 
-                if find_and_click_conversation(driver, user):
+                for attempt in range(1, MAX_RETRIES + 1):
+                    logging.info(f"--- Processing: '{safe_user}' (attempt {attempt}/{MAX_RETRIES}) ---")
+
+                    if attempt > 1:
+                        try:
+                            driver.get(TIKTOK_MESSAGES_URL)
+                            if not wait_for_element(driver, By.XPATH, MESSAGE_LIST_CONTAINER_XPATH, timeout=35):
+                                logging.warning("Message list did not reload cleanly before retry.")
+                            time.sleep(random.uniform(3, 5))
+                        except Exception as nav_err:
+                            logging.warning(f"Navigation before retry failed: {nav_err}")
+
+                    if not find_and_click_conversation(driver, user):
+                        logging.warning(f"✗ Conversation not found for '{safe_user}'.")
+                        if attempt < MAX_RETRIES:
+                            logging.info(f"Retrying in {RETRY_DELAY_SECONDS}s...")
+                            time.sleep(RETRY_DELAY_SECONDS)
+                        continue
+
                     if send_message_in_open_chat(driver):
-                        success += 1
-                        logging.info(f"✓ Message sent to '{safe_user}'.")
-                    else:
-                        logging.warning(f"✗ Opened chat for '{safe_user}' but failed to send.")
+                        sent = True
+                        break
+
+                    logging.warning(f"✗ Send/verification failed for '{safe_user}' on attempt {attempt}.")
+                    if attempt < MAX_RETRIES:
+                        logging.info(f"Retrying in {RETRY_DELAY_SECONDS}s...")
+                        time.sleep(RETRY_DELAY_SECONDS)
+
+                if sent:
+                    success += 1
+                    logging.info(f"✓ Message confirmed sent to '{safe_user}'.")
                 else:
-                    logging.warning(f"✗ Conversation not found for '{safe_user}'.")
+                    logging.error(f"✗ All {MAX_RETRIES} attempts failed for '{safe_user}'.")
 
                 if len(TARGET_USERS) > 1 and user != TARGET_USERS[-1]:
                     wait = random.uniform(5, 10)
