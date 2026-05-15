@@ -1,120 +1,94 @@
 # TikTok Streak Bot
 
-This bot designed to solve one specific, annoying problem: **maintaining TikTok streaks.**
+Automates sending a daily message to maintain TikTok streaks. Built to survive silent UI updates, iframe blocks, and run reliably on cheap Low RAM VPS instances.
 
-Manually sending a message every day to keep a streak alive is a waste of mental energy. You forget, the streak dies, it's a chore. This script automates that chore.
+## Core Mechanics
 
-## How It's Built to Not Fail
+*   **Smart Verification:** TikTok frequently drops messages silently. The bot doesn't just hit enter; it checks if the input box actually cleared. If not, it refreshes and retries.
+*   **Iframe Bypass:** TikTok recently started hiding the DM interface inside iframes. The bot detects this and automatically switches context.
+*   **Low-RAM Optimized:** Forces single-process mode, disables images/GPU, and uses `/dev/shm` workarounds to prevent Out-Of-Memory (OOM) crashes on Low RAM VPS environments. 
+*   **Process Management:** Automatically kills lingering zombie `chromedriver` or `chrome` processes before and after runs. No memory leaks over time.
 
-I built this thing to be solid because I never want to think about streaks again.
+## 1. Initial Setup (All Platforms)
 
-*   **No Lazy Timers:** It doesn't use `sleep(86400)` loop. It runs on a schedule.
-*   **No Zombie Processes:** This system **guarantees** the browser is terminated and all temporary data is removed after every run, success or fail. No memory leaks, no disk space creep.
-*   **No Blindness:** Bot keeps a detailed `log file` of every major action, warning, and critical error.
-*   **Smart Configuration:** All needed variables are in `config.json`. The XPaths are hardcoded in the script. TikTok's frontend team is lazy. They haven't changed the core message UI in ages. If they ever do, you'll update a few variables at the top of the script. If I see it, I'll fix it and commit it.
-
-## Installation
-
-You need Python 3.
-
-1.  **Clone the Repository:**
+1.  **Clone the Repo:**
     ```bash
     git clone https://github.com/thetrekir/tiktok-streak-bot.git
     cd tiktok-streak-bot
     ```
 
-2.  **Install Dependencies:** 
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3.  **Get Your Cookies:**
-    The bot uses cookies to log in. No password needed.
+2.  **Get Your Cookies:**
     *   Log in to TikTok in your browser.
     *   Use an extension like [Cookie-Editor](https://cookie-editor.com/) to export your cookies for the `tiktok.com` domain.
-    *   Save the exported JSON data into a file named `cookies.json` in the same directory.
+    *   Save the JSON data into a file named `cookies.json` in the bot's root directory.
 
-4.  **Configure It:**
-    The first time you run the script, it will create a `config.json` file. Open it and set it up.
-
-## Configuration (`config.json`)
-
-This file controls the bot.
-
-```json
-{
-  "TEST_MODE": false,
-  "TARGET_USERS": ["username1", "username2"],
-  "MESSAGE_TO_SEND": ".",
-  "TARGET_SEND_TIME_HM": [0, 2],
-  "COOKIES_FILE": "cookies.json",
-  "LOG_FILENAME": "tiktok_bot.txt",
-  "HEADLESS_MODE": true
-}
-```
-
-*   `TEST_MODE`: `true` runs it once, now. `false` uses the daily schedule.
-*   `TARGET_USERS`: List of usernames to send the message to.
-*   `MESSAGE_TO_SEND`: The message. `.` is enough.
-*   `TARGET_SEND_TIME_HM`: `[Hour, Minute]` in 24-hour format. `[0, 2]` means 00:02 AM.
-*   `COOKIES_FILE`: Name of your cookies file.
-*   `LOG_FILENAME`: Name of the log file.
-*   `HEADLESS_MODE`: `true` runs it invisibly. `false` shows the browser window.
-
-## Usage
-
-1.  **Test Run:**
-    Set `"TEST_MODE": true` in the config and run `python main.py`. Check the console and the log file to see if it worked.
-
-3.  **Deploy:**
-    Set `"TEST_MODE": false` in the config. For a silent background process on Windows, run it with `pythonw.exe`:
-    ```bash
-    pythonw.exe main.py
+3.  **Configure:**
+    Run the bot once or create `config.json` manually:
+    ```json
+    {
+      "TEST_MODE": false,
+      "TARGET_USERS": ["username1", "username2"],
+      "MESSAGE_TO_SEND": "husky",
+      "TARGET_SEND_TIME_HM": [0, 2],
+      "COOKIES_FILE": "cookies.json",
+      "LOG_FILENAME": "tiktok_bot.txt",
+      "HEADLESS_MODE": true
+    }
     ```
-    
-    **For to open automatically after the system reboots, set this up as a Scheduled Task or Service in Windows to run at logon.(I use this)**
+    *   `TEST_MODE`: `true` ignores the schedule and runs immediately. Useful for debugging.
+    *   `TARGET_SEND_TIME_HM`: `[Hour, Minute]` in 24-hour format (e.g., `[0, 2]` = 00:02 AM).
 
-### 3. Complete Automation Setup (Windows Service via .exe)
+## 2. Deployment Options
 
-If you don't know Python or just want a bulletproof background process that survives reboots and runs silently, use the `.exe` version with NSSM (Non-Sucking Service Manager).
+Choose how you want to run the bot based on your environment.
 
- 1. Download the latest `tiktok-bot.exe` from the **Releases** tab.
- 2. Put the `.exe`, `config.json`, and `cookies.json` in a dedicated folder (e.g., `C:\TikTokBot`).
- 3. Download [NSSM](http://nssm.cc/) and extract `nssm.exe` (use the win64 version) into the same folder.
- 4. Open Command Prompt **as Administrator**, navigate to your folder, and type:
+### Option A: Docker (Recommended for Linux VPS)
+
+The cleanest way to run this on a server. It packages its own Chrome binaries and dependencies.
+
+1. Ensure your `cookies.json` and `config.json` are in the project root (or inside the `/data` dir if you have it mounted).
+2. Edit your timezone in `docker-compose.yml` if necessary.
+3. Build and run in the background:
    ```bash
+   docker compose up -d --build
+   ```
+4. View logs:
+   ```bash
+   docker compose logs -f
+   ```
+
+### Option B: Windows Background Service (.exe)
+
+If you use a Windows PC and want the bot to run completely hidden in the background, surviving reboots.
+
+1. Download the latest `tiktok-bot.exe` from the **Releases** tab.
+2. Put the `.exe`, `config.json`, and `cookies.json` in a folder (e.g., `C:\TikTokBot`).
+3. Download [NSSM](http://nssm.cc/), extract `nssm.exe` (win64).
+4. Open Command Prompt **as Admin** and run:
+   ```cmd
    nssm install TikTokStreakBot
    ```
- 5. A GUI will pop up. In the **Path** box, select your `tiktok-bot.exe`.
- 6. Go to the **Details** tab, set the display name and description if you want.
- 7. Click **Install service**. 
- 8. After you install the service **type**:
-   ```bash
+5. In the NSSM GUI, set the **Path** to your `tiktok-bot.exe`. Click **Install service**.
+6. Start the service:
+   ```cmd
    sc start TikTokStreakBot
    ```
+The bot will now run silently every time your PC turns on. Check `tiktok_bot.txt` for logs.
 
-That's it. It's now a Windows system service. It will run automatically every time your PC turns on, completely invisible. You can check your `tiktok_bot.txt` log file to see it working.
+### Option C: Manual Python Execution (Mac/Linux/Windows)
 
-## Troubleshooting
+If you just want to run the script directly.
 
-#### Mac and Linux Compatibility
+1. Install requirements:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Run it:
+   ```bash
+   python main.py
+   ```
+*(For a background run on Windows without a console window, use `pythonw.exe main.py`)*
 
-The bot is fully cross-platform. It automatically detects your operating system (Windows, macOS, or Linux) and executes the correct background cleanup commands (`taskkill` for Windows, `pkill` for Unix). 
+## Logs & Debugging
 
-If you are running this on an ARM device (like a Raspberry Pi or an Apple Silicon Mac M1/M2/M3), modern versions of `webdriver-manager` handle the architecture automatically. Just ensure you have the respective browser installed on your system (e.g., Chromium on Linux).
-
-## Is It Reliable? (Real-World Data)
-
-A 100% success rate is a fantasy. Things break. Here's the data from about 90 days of it running live:
-
-*   **Total Operations (Bot's Responsibility):** 80
-*   **Successful Operations:** 76
-*   **Operational Success Rate: 95%**
-
-The 4 times it failed, it wasn't a bug in my code. It was TikTok being flaky.
-
-* **June 4, 5, 23:** The UI glitched out. Clicks didn't register or it couldn't find the user in the list.
-
-* **June 15:** The connection timed out waiting for the server to respond.
-
-**The takeaway:** The bot's logic is solid. It works consistently, and the rare failures are due to the Tiktok.
+The bot writes all operations, retries, and errors to `tiktok_bot.txt` (or whatever you named it in `config.json`). If a message fails, check this log. It will tell you if the element wasn't found, if it got stuck in an iframe, or if the cookie expired.
