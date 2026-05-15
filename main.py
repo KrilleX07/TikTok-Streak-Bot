@@ -233,13 +233,57 @@ def load_cookies(driver, cookie_file):
 # ──────────────────────────────────────────────
 # HELPERS
 # ──────────────────────────────────────────────
+def switch_to_iframe_with_element(driver, element_xpath, timeout=35):
+    """
+    Finds the iframe containing the target element and switches Selenium into it.
+    """
+    driver.switch_to.default_content()
+
+    try:
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_all_elements_located((By.TAG_NAME, "iframe"))
+        )
+    except TimeoutException:
+        return False
+
+    iframes = driver.find_elements(By.TAG_NAME, "iframe")
+    logging.info(f"Found {len(iframes)} iframe(s). Scanning for target...")
+
+    for index, iframe in enumerate(iframes):
+        try:
+            driver.switch_to.default_content()
+            driver.switch_to.frame(iframe)
+
+            elements = driver.find_elements(By.XPATH, element_xpath)
+            if elements:
+                logging.info(f"Target element found inside iframe #{index}.")
+                return True
+        except Exception as e:
+            logging.warning(f"Error checking iframe #{index}: {e}")
+
+    driver.switch_to.default_content()
+    return False
+
 def wait_for_element(driver, by, value, timeout=20):
     try:
-        WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, value)))
-        logging.info(f"Element found: {value}")
+        # First try normal page
+        WebDriverWait(driver, 5).until(EC.presence_of_element_located((by, value)))
+        logging.info(f"Element found in main document: {value}")
         return True
     except TimeoutException:
-        logging.error(f"Timeout waiting for element: {value}")
+        logging.info(f"Element '{value}' not in main document. Checking iframes...")
+        
+        # If its an XPath
+        if by == By.XPATH:
+            if switch_to_iframe_with_element(driver, value, timeout):
+                try:
+                    WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, value)))
+                    logging.info(f"Element confirmed inside iframe: {value}")
+                    return True
+                except TimeoutException:
+                    pass
+                    
+        logging.error(f"Timeout waiting for element (checked main & iframes): {value}")
         return False
 
 def find_and_click_conversation(driver, username):
